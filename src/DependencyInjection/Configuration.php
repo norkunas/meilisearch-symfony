@@ -61,8 +61,210 @@ final class Configuration implements ConfigurationInterface
                             ->end()
                             ->arrayNode('settings')
                                 ->info('Configure indices settings, see: https://docs.meilisearch.com/guides/advanced_guides/settings.html')
-                                ->arrayPrototype()
-                                    ->variablePrototype()->end()
+                                ->addDefaultsIfNotSet()
+                                ->children()
+                                    ->arrayNode('displayedAttributes')
+                                        ->canBeEnabled()
+                                        ->beforeNormalization()
+                                            ->ifArray()
+                                            ->then(static function ($v) {
+                                                if (\is_array($v) && true === $v['enabled']) {
+                                                    $service = $v['_service'] ?? null;
+                                                    unset($v['enabled'], $v['_service']);
+
+                                                    return ['enabled' => true, 'value' => $v, '_service' => $service];
+                                                }
+
+                                                return $v;
+                                            })
+                                        ->end()
+                                        ->children()
+                                            ->arrayNode('value')
+                                                ->scalarPrototype()->end()
+                                            ->end()
+                                            ->scalarNode('_service')->defaultNull()->end()
+                                        ->end()
+                                    ->end()
+                                    ->arrayNode('distinctAttribute')
+                                        ->canBeEnabled()
+                                        ->beforeNormalization()
+                                            ->ifString()
+                                            ->then(function ($v) {
+                                                return ['enabled' => true, 'value' => $v];
+                                            })
+                                        ->end()
+                                        ->children()
+                                            ->scalarNode('value')->defaultNull()->cannotBeEmpty()->end()
+                                        ->end()
+                                    ->end()
+                                    ->arrayNode('faceting')
+                                        ->canBeEnabled()
+                                        ->children()
+                                            ->integerNode('maxValuesPerFacet')->defaultNull()->end()
+                                            ->arrayNode('sortFacetValuesBy')
+                                                ->normalizeKeys(false)
+                                                ->variablePrototype()->end()
+                                            ->end()
+                                        ->end()
+                                    ->end()
+                                    ->arrayNode('filterableAttributes')
+                                        ->canBeEnabled()
+                                        ->beforeNormalization()
+                                            ->ifArray()
+                                            ->then(static function ($v) {
+                                                if (\is_array($v) && true === $v['enabled']) {
+                                                    $service = $v['_service'] ?? null;
+                                                    unset($v['enabled'], $v['_service']);
+
+                                                    return ['enabled' => true, 'value' => $v, '_service' => $service];
+                                                }
+
+                                                return $v;
+                                            })
+                                        ->end()
+                                        ->children()
+                                            ->arrayNode('value')
+                                                ->scalarPrototype()->end()
+                                            ->end()
+                                            ->scalarNode('_service')->defaultNull()->end()
+                                        ->end()
+                                    ->end()
+                                    ->arrayNode('pagination')
+                                        ->canBeEnabled()
+                                        ->children()
+                                            ->integerNode('maxTotalHits')->defaultNull()->end()
+                                        ->end()
+                                    ->end()
+                                    ->arrayNode('rankingRules')
+                                        ->canBeEnabled()
+                                        ->beforeNormalization()
+                                            ->ifArray()
+                                            ->then(static function ($v) {
+                                                if (\is_array($v) && true === $v['enabled']) {
+                                                    $service = $v['_service'] ?? null;
+                                                    unset($v['enabled'], $v['_service']);
+
+                                                    return ['enabled' => true, 'value' => $v, '_service' => $service];
+                                                }
+
+                                                return $v;
+                                            })
+                                        ->end()
+                                        ->children()
+                                            ->arrayNode('value')
+                                                ->scalarPrototype()->end()
+                                            ->end()
+                                            ->scalarNode('_service')->defaultNull()->end()
+                                        ->end()
+                                    ->end()
+                                    ->arrayNode('searchableAttributes')
+                                        ->canBeEnabled()
+                                        ->beforeNormalization()
+                                            ->ifArray()
+                                            ->then(static function ($v) {
+                                                if (\is_array($v) && true === $v['enabled']) {
+                                                    $service = $v['_service'] ?? null;
+                                                    unset($v['enabled'], $v['_service']);
+
+                                                    return ['enabled' => true, 'value' => $v, '_service' => $service];
+                                                }
+
+                                                return $v;
+                                            })
+                                        ->end()
+                                        ->children()
+                                            ->arrayNode('value')
+                                                ->scalarPrototype()->end()
+                                            ->end()
+                                            ->scalarNode('_service')->defaultNull()->end()
+                                        ->end()
+                                    ->end()
+                                    ->arrayNode('sortableAttributes')
+                                        ->canBeEnabled()
+                                        ->beforeNormalization()
+                                            ->ifArray()
+                                            ->then(static function ($v) {
+                                                if (\is_array($v) && true === $v['enabled']) {
+                                                    $service = $v['_service'] ?? null;
+                                                    unset($v['enabled'], $v['_service']);
+
+                                                    return ['enabled' => true, 'value' => $v, '_service' => $service];
+                                                }
+
+                                                return $v;
+                                            })
+                                        ->end()
+                                        ->children()
+                                            ->arrayNode('value')
+                                                ->scalarPrototype()->end()
+                                            ->end()
+                                            ->scalarNode('_service')->defaultNull()->end()
+                                        ->end()
+                                    ->end()
+                                    ->arrayNode('stopWords')
+                                        ->canBeEnabled()
+                                        ->beforeNormalization()
+                                            ->ifArray()
+                                            ->then(static function ($v) {
+                                                if (\is_array($v) && true === $v['enabled']) {
+                                                    $service = $v['_service'] ?? null;
+                                                    unset($v['enabled'], $v['_service']);
+
+                                                    return ['enabled' => true, 'value' => $v, '_service' => $service];
+                                                }
+
+                                                return $v;
+                                            })
+                                        ->end()
+                                        ->children()
+                                            ->arrayNode('value')
+                                                ->scalarPrototype()->end()
+                                            ->end()
+                                            ->scalarNode('_service')->defaultNull()->end()
+                                        ->end()
+                                    ->end()
+                                    ->arrayNode('synonyms')
+                                        ->canBeEnabled()
+                                        ->beforeNormalization()
+                                            ->always()
+                                            ->then(static function ($v) {
+                                                if (\is_array($v) && true === $v['enabled']) {
+                                                    $service = $v['_service'] ?? null;
+                                                    unset($v['enabled'], $v['_service']);
+
+                                                    return ['enabled' => true, 'value' => $v, '_service' => $service];
+                                                }
+
+                                                return $v;
+                                            })
+                                        ->end()
+                                        ->children()
+                                            ->arrayNode('value')
+                                            ->variablePrototype()
+                                                ->beforeNormalization()->castToArray()->end()
+                                            ->end()
+                                            ->end()
+                                            ->scalarNode('_service')->defaultNull()->end()
+                                        ->end()
+                                    ->end()
+                                    ->arrayNode('typoTolerance')
+                                        ->canBeDisabled()
+                                        ->children()
+                                            ->arrayNode('minWordSizeForTypos')
+                                                ->addDefaultsIfNotSet()
+                                                ->children()
+                                                    ->integerNode('oneTypo')->defaultNull()->end()
+                                                    ->integerNode('twoTypos')->defaultNull()->end()
+                                                ->end()
+                                            ->end()
+                                            ->arrayNode('disableOnWords')
+                                                ->scalarPrototype()->end()
+                                            ->end()
+                                            ->arrayNode('disableOnAttributes')
+                                                ->scalarPrototype()->end()
+                                            ->end()
+                                        ->end()
+                                    ->end()
                                 ->end()
                             ->end()
                         ->end()
