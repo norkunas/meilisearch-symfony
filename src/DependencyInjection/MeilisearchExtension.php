@@ -4,10 +4,15 @@ declare(strict_types=1);
 
 namespace Meilisearch\Bundle\DependencyInjection;
 
+use Meilisearch\Bundle\Command\MeilisearchImportCommand;
+use Meilisearch\Bundle\DocumentProvider\OrmEntityProvider;
+use Meilisearch\Bundle\Engine;
 use Meilisearch\Bundle\MeilisearchBundle;
 use Meilisearch\Bundle\Services\UnixTimestampNormalizer;
 use Symfony\Component\Config\FileLocator;
+use Symfony\Component\DependencyInjection\Argument\TaggedIteratorArgument;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
+use Symfony\Component\DependencyInjection\Definition;
 use Symfony\Component\DependencyInjection\Extension\Extension;
 use Symfony\Component\DependencyInjection\Loader;
 use Symfony\Component\DependencyInjection\Reference;
@@ -28,9 +33,25 @@ final class MeilisearchExtension extends Extension
         }
 
         foreach ($config['indices'] as $index => $indice) {
-            $config['indices'][$index]['prefixed_name'] = $config['prefix'].$indice['name'];
+            $config['indices'][$index]['prefixed_name'] = $indexName = $config['prefix'].$indice['name'];
             $config['indices'][$index]['settings'] = $this->findReferences($config['indices'][$index]['settings']);
+
+            if ($indice['type'] === 'orm') {
+                $providerDefinition = new Definition(OrmEntityProvider::class, [
+                    new Reference('doctrine'),
+                    $indexName,
+                    $indice['class'],
+                ]);
+                $providerDefinition->addTag('meilisearch.document_provider');
+
+                $container->setDefinition('meilisearch.document_provider.'.$indice['name'].'_provider', $providerDefinition);
+            }/* elseif ($indice['type'] === 'orm_aggregator') {
+
+            }*/
         }
+
+        $def=$container->findDefinition(MeilisearchImportCommand::class);
+        $def->setArgument('$documentProviders', new TaggedIteratorArgument('meilisearch.document_provider'));
 
         $container->setParameter('meili_url', $config['url'] ?? null);
         $container->setParameter('meili_api_key', $config['api_key'] ?? null);

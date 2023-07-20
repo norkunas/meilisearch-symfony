@@ -80,13 +80,13 @@ final class MeilisearchCreateCommand extends IndexCommand
                 continue;
             }
 
-            $output->writeln('<info>Creating index '.$index['name'].' for '.$entityClassName.'</info>');
+            $output->writeln('<info>Creating index '.$index['prefixed_name'].' for '.$entityClassName.'</info>');
 
             $task = $this->searchClient->createIndex($index['name']);
             $this->searchClient->waitForTask($task['taskUid'], $responseTimeout);
 
             if ($updateSettings) {
-                $this->settingsUpdater->update($index['name'], $responseTimeout);
+                $this->settingsUpdater->update($index['prefixed_name'], $responseTimeout);
             }
         }
 

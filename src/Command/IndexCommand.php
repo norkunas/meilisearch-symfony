@@ -30,7 +30,7 @@ abstract class IndexCommand extends Command
     {
         return (new Collection($this->searchService->getConfiguration()->get('indices')))
             ->transform(function (array $item) {
-                $item['name'] = $this->prefix.$item['name'];
+                //$item['name'] = $this->prefix.$item['name'];
 
                 return $item;
             });
@@ -62,7 +62,7 @@ abstract class IndexCommand extends Command
         }
 
         if (count($indexNames) > 0) {
-            return $indices->reject(fn (array $item) => !in_array($item['name'], $indexNames->all(), true));
+            return $indices->reject(fn (array $item) => !in_array($item['prefixed_name'], $indexNames->all(), true));
         }
 
         return $indices;
