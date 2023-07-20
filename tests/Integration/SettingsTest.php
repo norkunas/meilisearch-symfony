@@ -53,7 +53,7 @@ final class SettingsTest extends BaseKernelTestCase
         $this->assertSame(1500, $settings['searchCutoffMs']);
 
         $this->assertStringContainsString('Setting "filterableAttributes" updated of "sf_phpunit__posts".', $output);
-        $this->assertSame(['publishedAt', 'title'], $settings['filterableAttributes']);
+        $this->assertSame(['title', 'publishedAt'], $settings['filterableAttributes']);
 
         $this->assertStringContainsString('Setting "typoTolerance" updated of "sf_phpunit__posts".', $output);
         $this->assertArrayHasKey('typoTolerance', $settings);

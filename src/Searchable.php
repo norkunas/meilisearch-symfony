@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace Meilisearch\Bundle;
 
+/**
+ * @todo: deprecate
+ */
 final class Searchable
 {
     public const NORMALIZATION_FORMAT = 'searchableArray';

@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Meilisearch\Bundle\Command;
 
 use Meilisearch\Bundle\Collection;
-use Meilisearch\Bundle\SearchService;
+use Meilisearch\Bundle\Services\MeilisearchManager;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
@@ -14,21 +14,21 @@ abstract class IndexCommand extends Command
 {
     protected const DEFAULT_RESPONSE_TIMEOUT = 5000;
 
-    protected SearchService $searchService;
+    protected MeilisearchManager $searchManager;
 
     private string $prefix;
 
-    public function __construct(SearchService $searchService)
+    public function __construct(MeilisearchManager $searchManager)
     {
-        $this->searchService = $searchService;
-        $this->prefix = $this->searchService->getConfiguration()->get('prefix');
+        $this->searchManager = $searchManager;
+        $this->prefix = $this->searchManager->getConfiguration()->get('prefix');
 
         parent::__construct();
     }
 
     protected function getEntitiesFromArgs(InputInterface $input, OutputInterface $output): Collection
     {
-        $indices = new Collection($this->searchService->getConfiguration()->get('indices'));
+        $indices = new Collection($this->searchManager->getConfiguration()->get('indices'));
         $indexNames = new Collection();
 
         if ($indexList = $input->getOption('indices')) {

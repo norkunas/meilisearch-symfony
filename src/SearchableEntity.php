@@ -12,6 +12,9 @@ use Symfony\Component\Serializer\Normalizer\DateTimeNormalizer;
 use Symfony\Component\Serializer\Normalizer\NormalizableInterface;
 use Symfony\Component\Serializer\Normalizer\NormalizerInterface;
 
+/**
+ * @todo: deprecate
+ */
 final class SearchableEntity
 {
     private string $indexUid;

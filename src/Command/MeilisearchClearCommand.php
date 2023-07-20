@@ -36,7 +36,7 @@ final class MeilisearchClearCommand extends IndexCommand
             $indexName = $index['prefixed_name'];
             $className = $index['class'];
             $msg = "Cleared <info>$indexName</info> index of <comment>$className</comment>";
-            $array = $this->searchService->clear($className);
+            $array = $this->searchManager->clear($className);
 
             if ('failed' === $array['status']) {
                 $msg = "<error>Index <info>$indexName</info>  couldn\'t be cleared</error>";
