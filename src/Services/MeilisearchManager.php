@@ -4,54 +4,66 @@ declare(strict_types=1);
 
 namespace Meilisearch\Bundle\Services;
 
-use Doctrine\Common\Util\ClassUtils;
 use Doctrine\ORM\Proxy\DefaultProxyClassNameResolver;
 use Doctrine\Persistence\ObjectManager;
 use Meilisearch\Bundle\Collection;
+use Meilisearch\Bundle\DataProvider\DataProviderInterface;
 use Meilisearch\Bundle\Engine;
 use Meilisearch\Bundle\Entity\Aggregator;
 use Meilisearch\Bundle\Exception\ObjectIdNotFoundException;
 use Meilisearch\Bundle\Exception\SearchHitsNotFoundException;
-use Meilisearch\Bundle\SearchableEntity;
-use Meilisearch\Bundle\SearchService;
+use Meilisearch\Bundle\SearchableObject;
+use Psr\Container\ContainerInterface;
 use Symfony\Component\Config\Definition\Exception\Exception;
-use Symfony\Component\PropertyAccess\PropertyAccess;
 use Symfony\Component\PropertyAccess\PropertyAccessorInterface;
 use Symfony\Component\Serializer\Normalizer\NormalizerInterface;
 
-// @todo: deprecate
-final class MeilisearchService implements SearchService
+final class MeilisearchManager
 {
+    private const RESULT_KEY_HITS = 'hits';
+    private const RESULT_KEY_OBJECTID = 'objectID';
+
     private NormalizerInterface $normalizer;
+
     private Engine $engine;
+
     private Collection $configuration;
+
     private PropertyAccessorInterface $propertyAccessor;
+
+    private ContainerInterface $dataProviders;
+
     /**
      * @var list<class-string>
      */
-    private array $searchableEntities;
+    private array $searchables;
+
     /**
      * @var array<class-string, list<class-string>>
      */
     private array $entitiesAggregators;
+
     /**
      * @var list<class-string<Aggregator>>
      */
     private array $aggregators;
+
     /**
      * @var array<class-string, array<string>>
      */
     private array $classToSerializerGroup;
+
     private array $indexIfMapping;
 
-    public function __construct(NormalizerInterface $normalizer, Engine $engine, array $configuration, ?PropertyAccessorInterface $propertyAccessor = null)
+    public function __construct(NormalizerInterface $normalizer, Engine $engine, PropertyAccessorInterface $propertyAccessor, array $configuration, ContainerInterface $dataProviders)
     {
         $this->normalizer = $normalizer;
         $this->engine = $engine;
+        $this->propertyAccessor = $propertyAccessor;
         $this->configuration = new Collection($configuration);
-        $this->propertyAccessor = $propertyAccessor ?? PropertyAccess::createPropertyAccessor();
+        $this->dataProviders = $dataProviders;
 
-        $this->setSearchableEntities();
+        $this->setSearchables();
         $this->setAggregatorsAndEntitiesAggregators();
         $this->setClassToSerializerGroup();
         $this->setIndexIfMapping();
@@ -61,17 +73,22 @@ final class MeilisearchService implements SearchService
     {
         $className = $this->getBaseClassName($className);
 
-        return \in_array($className, $this->searchableEntities, true);
+        return \in_array($className, $this->searchables, true);
     }
 
-    public function getSearchable(): array
+    public function getSearchables(): array
     {
-        return $this->searchableEntities;
+        return $this->searchables;
     }
 
     public function getConfiguration(): Collection
     {
         return $this->configuration;
+    }
+
+    public function getDataProvider(string $indice): DataProviderInterface
+    {
+        return $this->dataProviders->get($indice);
     }
 
     public function searchableAs(string $className): string
@@ -84,10 +101,14 @@ final class MeilisearchService implements SearchService
         return $this->getConfiguration()->get('prefix').$index['name'];
     }
 
-    public function index(ObjectManager $objectManager, $searchable): array
+    /**
+     * @param object|array<object> $searchable
+     */
+    public function index($searchable): array
     {
         $searchable = \is_array($searchable) ? $searchable : [$searchable];
-        $searchable = array_merge($searchable, $this->getAggregatorsFromEntities($objectManager, $searchable));
+        // @todo: complete aggregators
+        // $searchable = array_merge($searchable, $this->getAggregatorsFromEntities($objectManager, $searchable));
 
         $dataToIndex = array_filter(
             $searchable,
@@ -103,31 +124,27 @@ final class MeilisearchService implements SearchService
         }
 
         if (\count($dataToRemove) > 0) {
-            $this->remove($objectManager, $dataToRemove);
+            $this->remove($dataToRemove);
         }
 
         return $this->makeSearchServiceResponseFrom(
-            $objectManager,
             $dataToIndex,
-            fn ($chunk) => $this->engine->index($chunk)
+            fn (array $chunk) => $this->engine->index($chunk)
         );
     }
 
-    public function remove(ObjectManager $objectManager, $searchable): array
+    /**
+     * @param object|array<object> $searchable
+     */
+    public function remove($searchable): array
     {
         $searchable = \is_array($searchable) ? $searchable : [$searchable];
-        $searchable = array_merge($searchable, $this->getAggregatorsFromEntities($objectManager, $searchable));
+        // @todo: complete aggregators
+        // $searchable = array_merge($searchable, $this->getAggregatorsFromEntities($objectManager, $searchable));
 
-        $searchable = array_filter(
-            $searchable,
-            fn ($entity) => $this->isSearchable($entity)
-        );
+        $searchable = array_filter($searchable, fn ($entity) => $this->isSearchable($entity));
 
-        return $this->makeSearchServiceResponseFrom(
-            $objectManager,
-            $searchable,
-            fn ($chunk) => $this->engine->remove($chunk)
-        );
+        return $this->makeSearchServiceResponseFrom($searchable, fn ($chunk) => $this->engine->remove($chunk));
     }
 
     public function clear(string $className): array
@@ -150,44 +167,79 @@ final class MeilisearchService implements SearchService
     }
 
     public function search(
-        ObjectManager $objectManager,
         string $className,
         string $query = '',
         array $searchParams = []
     ): array {
         $this->assertIsSearchable($className);
 
-        $ids = $this->engine->search($query, $this->searchableAs($className), $searchParams + ['limit' => $this->configuration['nbResults']]);
+        $response = $this->engine->search($query, $this->searchableAs($className), $searchParams + ['limit' => $this->configuration['nbResults']]);
         $results = [];
 
         // Check if the engine returns results in "hits" key
-        if (!isset($ids[self::RESULT_KEY_HITS])) {
+        if (!isset($response[self::RESULT_KEY_HITS])) {
             throw new SearchHitsNotFoundException(\sprintf('There is no "%s" key in the search results.', self::RESULT_KEY_HITS));
         }
 
-        foreach ($ids[self::RESULT_KEY_HITS] as $hit) {
-            if (!isset($hit[self::RESULT_KEY_OBJECTID])) {
-                throw new ObjectIdNotFoundException(\sprintf('There is no "%s" key in the result.', self::RESULT_KEY_OBJECTID));
-            }
+        // temporary
+        $className = $this->getBaseClassName($className);
 
+        $indexes = new Collection($this->getConfiguration()->get('indices'));
+        $index = $indexes->firstWhere('class', $className);
+        //
+        $dataProvider=$this->getDataProvider($index['name']);
+
+        $identifiers = array_column($response[self::RESULT_KEY_HITS], self::RESULT_KEY_OBJECTID);
+
+        //dump($this->searchableAs($className),$response);
+        // @todo: complete
+
+        $loaded=$dataProvider->loadByIdentifiers($identifiers);
+
+        foreach ($response[self::RESULT_KEY_HITS] as $hit) {
             $documentId = $hit[self::RESULT_KEY_OBJECTID];
-            $entityClass = $className;
 
-            if (\in_array($className, $this->aggregators, true)) {
-                $objectId = $hit[self::RESULT_KEY_OBJECTID];
-                $entityClass = $className::getEntityClassFromObjectId($objectId);
-                $documentId = $className::getEntityIdFromObjectId($objectId);
-            }
-
-            $repo = $objectManager->getRepository($entityClass);
-            $entity = $repo->find($documentId);
-
-            if (null !== $entity) {
-                $results[] = $entity;
+            $obj = self::find($loaded, static function ($object) use ($documentId) {
+                return $object->getId() === $documentId;
+            });
+            if ($obj !== null) {
+                $results[]=$obj;
             }
         }
 
+        //        foreach ($ids[self::RESULT_KEY_HITS] as $hit) {
+        //            if (!isset($hit[self::RESULT_KEY_OBJECTID])) {
+        //                throw new ObjectIdNotFoundException(sprintf('There is no "%s" key in the result.', self::RESULT_KEY_OBJECTID));
+        //            }
+        //
+        //            $documentId = $hit[self::RESULT_KEY_OBJECTID];
+        //            $entityClass = $className;
+        //
+        //            if (in_array($className, $this->aggregators, true)) {
+        //                $objectId = $hit[self::RESULT_KEY_OBJECTID];
+        //                $entityClass = $className::getEntityClassFromObjectId($objectId);
+        //                $documentId = $className::getEntityIdFromObjectId($objectId);
+        //            }
+        //
+        //            $repo = $objectManager->getRepository($entityClass);
+        //            $entity = $repo->find($documentId);
+        //
+        //            if (null !== $entity) {
+        //                $results[] = $entity;
+        //            }
+        //        }
+        //
         return $results;
+    }
+    private static function find(array $objects, $callback) // @todo: remove me
+    {
+        foreach ($objects as $object) {
+            if ($callback($object)) {
+                return $object;
+            }
+        }
+
+        return null;
     }
 
     public function rawSearch(
@@ -231,7 +283,7 @@ final class MeilisearchService implements SearchService
      */
     private function getBaseClassName($objectOrClass): string
     {
-        foreach ($this->searchableEntities as $class) {
+        foreach ($this->searchables as $class) {
             if (is_a($objectOrClass, $class, true)) {
                 return $class;
             }
@@ -244,13 +296,15 @@ final class MeilisearchService implements SearchService
         return $objectOrClass;
     }
 
-    private function setSearchableEntities(): void
+    private function setSearchables(): void
     {
-        $searchable = [];
-        foreach ($this->configuration->get('indices') as $index) {
-            $searchable[] = $index['class'];
-        }
-        $this->searchableEntities = array_unique($searchable);
+        $this->searchables = array_unique(array_column($this->configuration->get('indices'), 'class'));
+        //        $searchable = [];
+        //
+        //        foreach ($this->configuration->get('indices') as $index) {
+        //            $searchable[] = $index['class'];
+        //        }
+        //        $this->searchables = array_unique($searchable);
     }
 
     private function setAggregatorsAndEntitiesAggregators(): void
@@ -303,51 +357,50 @@ final class MeilisearchService implements SearchService
      *
      * @return array<int, object>
      */
-    private function getAggregatorsFromEntities(ObjectManager $objectManager, array $entities): array
-    {
-        $aggregators = [];
-
-        foreach ($entities as $entity) {
-            $entityClassName = self::resolveClass($entity);
-            if (\array_key_exists($entityClassName, $this->entitiesAggregators)) {
-                foreach ($this->entitiesAggregators[$entityClassName] as $aggregator) {
-                    $aggregators[] = new $aggregator(
-                        $entity,
-                        $objectManager->getClassMetadata($entityClassName)->getIdentifierValues($entity)
-                    );
-                }
-            }
-        }
-
-        return $aggregators;
-    }
+    //    private function getAggregatorsFromEntities(ObjectManager $objectManager, array $entities): array
+    //    {
+    //        $aggregators = [];
+    //
+    //        foreach ($entities as $entity) {
+    //            $entityClassName = self::resolveClass($entity);
+    //            if (array_key_exists($entityClassName, $this->entitiesAggregators)) {
+    //                foreach ($this->entitiesAggregators[$entityClassName] as $aggregator) {
+    //                    $aggregators[] = new $aggregator(
+    //                        $entity,
+    //                        $objectManager->getClassMetadata($entityClassName)->getIdentifierValues($entity)
+    //                    );
+    //                }
+    //            }
+    //        }
+    //
+    //        return $aggregators;
+    //    }
 
     /**
      * For each chunk performs the provided operation.
      *
-     * @param array<int, object> $entities
+     * @param array<int, object> $objects
      */
     private function makeSearchServiceResponseFrom(
-        ObjectManager $objectManager,
-        array $entities,
+        array $objects,
         callable $operation
     ): array {
         $batch = [];
-        foreach (array_chunk($entities, $this->configuration->get('batchSize')) as $chunk) {
-            $searchableEntitiesChunk = [];
-            foreach ($chunk as $entity) {
-                $entityClassName = $this->getBaseClassName($entity);
+        foreach (array_chunk($objects, $this->configuration->get('batchSize')) as $chunk) {
+            $searchableChunk = [];
 
-                $searchableEntitiesChunk[] = new SearchableEntity(
-                    $this->searchableAs($entityClassName),
-                    $entity,
-                    $objectManager->getClassMetadata($entityClassName),
+            foreach ($chunk as $object) {
+                $objectClassName = $this->getBaseClassName($object);
+
+                $searchableChunk[] = new SearchableObject(
+                    $this->searchableAs($objectClassName),
+                    $object,
                     $this->normalizer,
-                    ['normalizationGroups' => $this->getNormalizationGroups($entityClassName)]
+                    ['groups' => $this->getNormalizationGroups($objectClassName)]
                 );
             }
 
-            $batch[] = $operation($searchableEntitiesChunk);
+            $batch[] = $operation($searchableChunk);
         }
 
         return $batch;

@@ -70,13 +70,13 @@ final class SearchTest extends BaseKernelTestCase
 
         $searchTerm = 'Test';
 
-        $results = $this->searchService->search($this->objectManager, Post::class, $searchTerm);
+        $results = $this->searchManager->search(Post::class, $searchTerm);
         $this->assertCount(5, $results);
 
         $resultTitles = array_map(static fn (Post $post) => $post->getTitle(), $results);
         $this->assertEqualsCanonicalizing($testDataTitles, $resultTitles);
 
-        $results = $this->searchService->rawSearch(Post::class, $searchTerm);
+        $results = $this->searchManager->rawSearch(Post::class, $searchTerm);
 
         $this->assertCount(5, $results['hits']);
         $resultTitles = array_map(static fn (array $hit) => $hit['title'], $results['hits']);
@@ -85,7 +85,7 @@ final class SearchTest extends BaseKernelTestCase
         $this->assertCount(5, $results['hits']);
         $this->assertSame(5, $results['nbHits']);
 
-        $results = $this->searchService->search($this->objectManager, Tag::class, $searchTerm);
+        $results = $this->searchManager->search(Tag::class, $searchTerm);
         $this->assertCount(1, $results);
     }
 
@@ -111,7 +111,7 @@ final class SearchTest extends BaseKernelTestCase
 
         $searchTerm = 'Test';
 
-        $results = $this->searchService->search($this->objectManager, Post::class, $searchTerm, ['page' => 2, 'hitsPerPage' => 2]);
+        $results = $this->searchManager->search(Post::class, $searchTerm, ['page' => 2, 'hitsPerPage' => 2]);
         $this->assertCount(2, $results);
 
         $resultTitles = array_map(static fn (Post $post) => $post->getTitle(), $results);
@@ -132,7 +132,7 @@ final class SearchTest extends BaseKernelTestCase
             '--indices' => $this->index->getUid(),
         ]);
 
-        $results = $this->searchService->search($this->objectManager, Post::class, 'test');
+        $results = $this->searchManager->search(Post::class, 'test');
 
         $this->assertCount(12, $results);
     }

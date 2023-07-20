@@ -21,30 +21,31 @@ final class Engine
      * This method allows you to create records on your index by sending one or more objects.
      * Each object contains a set of attributes and values, which represents a full record on an index.
      *
-     * @param array<SearchableEntity>|SearchableEntity $searchableEntities
+     * @param array<SearchableObject>|SearchableObject $searchableObjects
      *
      * @throws ApiException
      */
-    public function index($searchableEntities): array
+    public function index($searchableObjects): array
     {
-        if ($searchableEntities instanceof SearchableEntity) {
-            $searchableEntities = [$searchableEntities];
+        if ($searchableObjects instanceof SearchableObject) {
+            $searchableObjects = [$searchableObjects];
         }
 
         $data = [];
-        foreach ($searchableEntities as $entity) {
-            $searchableArray = $entity->getSearchableArray();
+
+        foreach ($searchableObjects as $object) {
+            $searchableArray = $object->getSearchableArray();
             if ([] === $searchableArray) {
                 continue;
             }
 
-            $indexUid = $entity->getIndexUid();
+            $indexUid = $object->getIndexUid();
 
             if (!isset($data[$indexUid])) {
                 $data[$indexUid] = [];
             }
 
-            $data[$indexUid][] = $searchableArray + ['objectID' => $this->normalizeId($entity->getId())];
+            $data[$indexUid][] = $searchableArray + ['objectID' => $this->normalizeId($object->getId())];
         }
 
         $result = [];
@@ -61,28 +62,28 @@ final class Engine
      * Remove objects from an index using their object UIDs.
      * This method enables you to remove one or more objects from an index.
      *
-     * @param array<SearchableEntity>|SearchableEntity $searchableEntities
+     * @param array<SearchableObject>|SearchableObject $searchableObjects
      */
-    public function remove($searchableEntities): array
+    public function remove($searchableObjects): array
     {
-        if ($searchableEntities instanceof SearchableEntity) {
-            $searchableEntities = [$searchableEntities];
+        if ($searchableObjects instanceof SearchableObject) {
+            $searchableObjects = [$searchableObjects];
         }
 
         $data = [];
 
-        foreach ($searchableEntities as $entity) {
-            $searchableArray = $entity->getSearchableArray();
+        foreach ($searchableObjects as $object) {
+            $searchableArray = $object->getSearchableArray();
             if (0 === \count($searchableArray)) {
                 continue;
             }
-            $indexUid = $entity->getIndexUid();
+            $indexUid = $object->getIndexUid();
 
             if (!isset($data[$indexUid])) {
                 $data[$indexUid] = [];
             }
 
-            $data[$indexUid][] = $this->normalizeId($entity->getId());
+            $data[$indexUid][] = $this->normalizeId($object->getId());
         }
 
         $result = [];
@@ -107,15 +108,13 @@ final class Engine
      */
     public function clear(string $indexUid): array
     {
-        $index = $this->client->index($indexUid);
-
-        return $index->deleteAllDocuments();
+        return $this->client->index($indexUid)->deleteAllDocuments();
     }
 
     /**
      * Delete an index and its content.
      */
-    public function delete(string $indexUid): ?array
+    public function delete(string $indexUid): array
     {
         return $this->client->deleteIndex($indexUid);
     }
