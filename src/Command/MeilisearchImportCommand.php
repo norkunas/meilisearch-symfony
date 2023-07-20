@@ -6,6 +6,7 @@ namespace Meilisearch\Bundle\Command;
 
 use Doctrine\Persistence\ManagerRegistry;
 use Meilisearch\Bundle\Collection;
+use Meilisearch\Bundle\DocumentProvider\DocumentProviderInterface;
 use Meilisearch\Bundle\EventListener\ConsoleOutputSubscriber;
 use Meilisearch\Bundle\Exception\TaskException;
 use Meilisearch\Bundle\Model\Aggregator;
@@ -26,7 +27,12 @@ final class MeilisearchImportCommand extends IndexCommand
     private SettingsUpdater $settingsUpdater;
     private EventDispatcherInterface $eventDispatcher;
 
-    public function __construct(SearchService $searchService, ManagerRegistry $managerRegistry, Client $searchClient, SettingsUpdater $settingsUpdater, EventDispatcherInterface $eventDispatcher)
+    /**
+     * @var iterable<DocumentProviderInterface>
+     */
+    private iterable $documentProviders;
+
+    public function __construct(SearchService $searchService, ManagerRegistry $managerRegistry, Client $searchClient, SettingsUpdater $settingsUpdater, EventDispatcherInterface $eventDispatcher, iterable $documentProviders)
     {
         parent::__construct($searchService);
 
@@ -34,6 +40,7 @@ final class MeilisearchImportCommand extends IndexCommand
         $this->searchClient = $searchClient;
         $this->settingsUpdater = $settingsUpdater;
         $this->eventDispatcher = $eventDispatcher;
+        $this->documentProviders = $documentProviders;
     }
 
     public static function getDefaultName(): string
@@ -43,7 +50,7 @@ final class MeilisearchImportCommand extends IndexCommand
 
     public static function getDefaultDescription(): string
     {
-        return 'Import given entity into search engine';
+        return 'Import documents into search engine';
     }
 
     protected function configure(): void
@@ -119,6 +126,13 @@ final class MeilisearchImportCommand extends IndexCommand
             }
 
             do {
+                foreach ($this->documentProviders as $documentProvider) {
+                    if ($documentProvider->getIndex() !== $index['prefixed_name']) {
+                        continue;
+                    }
+
+
+                }
                 $entities = $repository->findBy(
                     [],
                     $sortByAttrs,
@@ -154,6 +168,35 @@ final class MeilisearchImportCommand extends IndexCommand
         $output->writeln('<info>Done!</info>');
 
         return 0;
+    }
+
+    private function indexBatch(array $index, bool $updateSettings): void
+    {
+        $entities = $repository->findBy(
+            [],
+            $sortByAttrs,
+            $batchSize,
+            $batchSize * $page
+        );
+
+        $responses = $this->formatIndexingResponse($this->searchService->index($manager, $entities), $responseTimeout);
+        $totalIndexed += count($entities);
+        foreach ($responses as $indexName => $numberOfRecords) {
+            $output->writeln(
+                sprintf(
+                    'Indexed a batch of <comment>%d / %d</comment> %s entities into %s index (%d indexed since start)',
+                    $numberOfRecords,
+                    count($entities),
+                    $entityClassName,
+                    '<info>'.$indexName.'</info>',
+                    $totalIndexed,
+                )
+            );
+        }
+
+        if ($updateSettings) {
+            $this->settingsUpdater->update($index['prefixed_name'], $responseTimeout);
+        }
     }
 
     /**
