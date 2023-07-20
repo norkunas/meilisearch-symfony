@@ -23,12 +23,9 @@ abstract class Aggregator implements NormalizableInterface
      *
      * @var object
      */
-    protected $entity;
+    protected object $entity;
 
-    /**
-     * @param object $entity
-     */
-    public function __construct($entity, array $entityIdentifierValues)
+    public function __construct(object $entity, array $entityIdentifierValues)
     {
         $this->entity = $entity;
 
