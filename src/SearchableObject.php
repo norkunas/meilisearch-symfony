@@ -12,45 +12,48 @@ use Symfony\Component\Serializer\Normalizer\DateTimeNormalizer;
 use Symfony\Component\Serializer\Normalizer\NormalizableInterface;
 use Symfony\Component\Serializer\Normalizer\NormalizerInterface;
 
-/**
- * @todo: deprecate
- */
-final class SearchableEntity
+final class SearchableObject
 {
+    public const NORMALIZATION_FORMAT = 'searchableArray';
+    public const NORMALIZATION_GROUP = 'searchable';
+
+    /**
+     * @var non-empty-string
+     */
     private string $indexUid;
 
-    /** @var object */
-    private $entity;
-
-    /** @var ClassMetadata<object> */
-    private ClassMetadata $entityMetadata;
+    /**
+     * @var object
+     */
+    private $object;
 
     private ?NormalizerInterface $normalizer;
 
     /**
-     * @var list<string>
+     * @var array<mixed>
      */
-    private array $normalizationGroups;
+    private array $normalizationContext;
 
-    /** @var int|string */
+    /**
+     * @var int|string
+     */
     private $id;
 
     /**
-     * @param object                $entity
-     * @param ClassMetadata<object> $entityMetadata
+     * @param non-empty-string $indexUid
+     * @param object           $object
+     * @param array<mixed>     $normalizationContext
      */
     public function __construct(
         string $indexUid,
-        $entity,
-        //ClassMetadata $entityMetadata,
-        ?NormalizerInterface $normalizer = null,
-        array $extra = []
+        $object,
+        NormalizerInterface $normalizer,
+        array $normalizationContext = []
     ) {
         $this->indexUid = $indexUid;
-        $this->entity = $entity;
-        //$this->entityMetadata = $entityMetadata;
+        $this->object = $object;
         $this->normalizer = $normalizer;
-        $this->normalizationGroups = $extra['normalizationGroups'] ?? [];
+        $this->normalizationContext = array_merge($normalizationContext, ['meilisearch' => true]);
 
         $this->setId();
     }
@@ -65,35 +68,22 @@ final class SearchableEntity
      */
     public function getSearchableArray(): array
     {
-        $context = [
-            'meilisearch' => true,
-            //'fieldsMapping' => $this->entityMetadata->fieldMappings,
-        ];
-
-        if (\count($this->normalizationGroups) > 0) {
-            $context['groups'] = $this->normalizationGroups;
-        }
-
         if (Kernel::VERSION_ID >= 70100) {
-            $context[DateTimeNormalizer::FORMAT_KEY] = 'U';
-            $context[DateTimeNormalizer::CAST_KEY] = 'int';
+            $this->normalizationContext[DateTimeNormalizer::FORMAT_KEY] = 'U';
+            $this->normalizationContext[DateTimeNormalizer::CAST_KEY] = 'int';
         }
 
-        if ($this->entity instanceof NormalizableInterface && null !== $this->normalizer) {
-            return $this->entity->normalize($this->normalizer, Searchable::NORMALIZATION_FORMAT, $context);
+        if ($this->object instanceof NormalizableInterface) {
+            return $this->object->normalize($this->normalizer, self::NORMALIZATION_FORMAT, $this->normalizationContext);
         }
 
-        if (null !== $this->normalizer) {
-            return $this->normalizer->normalize($this->entity, Searchable::NORMALIZATION_FORMAT, $context);
-        }
-
-        return [];
+        return $this->normalizer->normalize($this->object, self::NORMALIZATION_FORMAT, $this->normalizationContext);
     }
 
     private function setId(): void
     {
         //$ids = $this->entityMetadata->getIdentifierValues($this->entity);
-        $ids = ['id' => $this->entity->getId()];
+        $ids = ['id' => $this->entity->getId()]; // @todo: ???
 
         if (0 === \count($ids)) {
             throw new Exception('Entity has no primary key');

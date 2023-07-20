@@ -54,6 +54,10 @@ meilisearch:
           _service: '@Meilisearch\Bundle\Tests\Integration\Fixtures\StopWords'
         synonyms:
           _service: '@Meilisearch\Bundle\Tests\Integration\Fixtures\Synonyms'
+    - name: actor
+      class: 'Meilisearch\Bundle\Tests\Entity\Actor'
+      type: 'custom'
+      document_provider: Meilisearch\Bundle\Tests\Integration\Fixtures\ActorDocumentProvider
 
 services:
   Meilisearch\Bundle\Tests\Integration\Fixtures\:

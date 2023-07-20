@@ -20,8 +20,17 @@
             <deprecated package="meilisearch/search-bundle" version="0.14">The "%alias_id%" service alias is deprecated. Use "meilisearch.service" instead.</deprecated>
         </service>
 
+        <service id="meilisearch.manager" class="Meilisearch\Bundle\Services\MeilisearchManager">
+            <argument type="abstract">normalizer</argument>
+            <argument type="service" id="meilisearch.engine" />
+            <argument type="service" id="property_accessor" />
+            <argument type="abstract">configuration</argument>
+            <argument type="tagged_iterator" tag="meilisearch.document_provider" index-by="key" />
+        </service>
+
         <service id="meilisearch.search_indexer_subscriber" class="Meilisearch\Bundle\EventListener\DoctrineEventSubscriber" public="true">
             <argument type="service" id="meilisearch.service" />
+            <argument type="service" id="meilisearch.manager" />
         </service>
         <service id="search.search_indexer_subscriber" alias="meilisearch.search_indexer_subscriber">
             <deprecated package="meilisearch/search-bundle" version="0.14">The "%alias_id%" service alias is deprecated. Use "meilisearch.search_indexer_subscriber" instead.</deprecated>
@@ -88,6 +97,17 @@
 
         <service id="Meilisearch\Bundle\Services\UnixTimestampNormalizer">
             <tag name="serializer.normalizer" />
+        </service>
+
+        <!-- @todo: remove me -->
+        <service id="Meilisearch\Bundle\Command\ImportCommand">
+            <argument type="service" id="meilisearch.service" />
+            <argument type="service" id="meilisearch.client" />
+            <argument type="service" id="meilisearch.settings_updater" />
+            <argument type="service" id="event_dispatcher" />
+            <argument type="service" id="meilisearch.manager" />
+            <argument type="tagged_iterator" tag="meilisearch.document_provider" />
+            <tag name="console.command" />
         </service>
     </services>
 </container>

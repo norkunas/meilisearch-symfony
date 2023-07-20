@@ -32,6 +32,7 @@ final class Engine
         }
 
         $data = [];
+
         foreach ($searchableEntities as $entity) {
             $searchableArray = $entity->getSearchableArray();
             if ([] === $searchableArray) {

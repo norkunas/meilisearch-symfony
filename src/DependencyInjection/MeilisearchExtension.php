@@ -4,10 +4,17 @@ declare(strict_types=1);
 
 namespace Meilisearch\Bundle\DependencyInjection;
 
+use Meilisearch\Bundle\Command\MeilisearchImportCommand;
+use Meilisearch\Bundle\DocumentProvider\DocumentProviderInterface;
+use Meilisearch\Bundle\DocumentProvider\OrmEntityProvider;
+use Meilisearch\Bundle\Engine;
 use Meilisearch\Bundle\MeilisearchBundle;
 use Meilisearch\Bundle\Services\UnixTimestampNormalizer;
 use Symfony\Component\Config\FileLocator;
+use Symfony\Component\DependencyInjection\Argument\ServiceLocatorArgument;
+use Symfony\Component\DependencyInjection\Argument\TaggedIteratorArgument;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
+use Symfony\Component\DependencyInjection\Definition;
 use Symfony\Component\DependencyInjection\Extension\Extension;
 use Symfony\Component\DependencyInjection\Loader;
 use Symfony\Component\DependencyInjection\Reference;
@@ -27,9 +34,26 @@ final class MeilisearchExtension extends Extension
             $config['prefix'] = $container->getParameter('kernel.environment').'_';
         }
 
+        $documentProviders = [];
         foreach ($config['indices'] as $index => $indice) {
-            $config['indices'][$index]['prefixed_name'] = $config['prefix'].$indice['name'];
+            $config['indices'][$index]['prefixed_name'] = $indexName = $config['prefix'].$indice['name'];
             $config['indices'][$index]['settings'] = $this->findReferences($config['indices'][$index]['settings']);
+
+            if ($indice['document_provider'] !== null) {
+                $documentProviders[$indice['name']] = new Reference($indice['document_provider']);
+                continue;
+            }
+
+            if ($indice['type'] === 'orm') {
+                $providerDefinition = new Definition(OrmEntityProvider::class, [new Reference('doctrine'), $indice['class']]);
+                $providerDefinition->addTag('meilisearch.document_provider', ['key' => $indice['name']]);
+
+                $container->setDefinition('meilisearch.document_provider.'.$indice['name'].'_provider', $providerDefinition);
+
+                $documentProviders[$indice['name']] = new Reference('meilisearch.document_provider.'.$indice['name'].'_provider');
+            }/* elseif ($indice['type'] === 'orm_aggregator') {
+
+            }*/
         }
 
         $container->setParameter('meili_url', $config['url'] ?? null);
@@ -55,6 +79,11 @@ final class MeilisearchExtension extends Extension
         $container->findDefinition('meilisearch.service')
             ->replaceArgument(0, new Reference($config['serializer']))
             ->replaceArgument(2, $config);
+
+        $container->findDefinition('meilisearch.manager')
+            ->replaceArgument(0, new Reference($config['serializer']))
+            ->replaceArgument(3, $config)
+            ->replaceArgument(4, new ServiceLocatorArgument($documentProviders));
 
         if (Kernel::VERSION_ID >= 70100) {
             $container->removeDefinition(UnixTimestampNormalizer::class);
