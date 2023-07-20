@@ -7,7 +7,7 @@ namespace Meilisearch\Bundle\Command;
 use Meilisearch\Bundle\Collection;
 use Meilisearch\Bundle\EventListener\ConsoleOutputSubscriber;
 use Meilisearch\Bundle\Model\Aggregator;
-use Meilisearch\Bundle\SearchService;
+use Meilisearch\Bundle\Services\MeilisearchManager;
 use Meilisearch\Bundle\Services\SettingsUpdater;
 use Meilisearch\Client;
 use Symfony\Component\Console\Input\InputInterface;
@@ -22,9 +22,9 @@ final class MeilisearchCreateCommand extends IndexCommand
     private SettingsUpdater $settingsUpdater;
     private EventDispatcherInterface $eventDispatcher;
 
-    public function __construct(SearchService $searchService, Client $searchClient, SettingsUpdater $settingsUpdater, EventDispatcherInterface $eventDispatcher)
+    public function __construct(MeilisearchManager $searchManager, Client $searchClient, SettingsUpdater $settingsUpdater, EventDispatcherInterface $eventDispatcher)
     {
-        parent::__construct($searchService);
+        parent::__construct($searchManager);
 
         $this->searchClient = $searchClient;
         $this->settingsUpdater = $settingsUpdater;
@@ -76,7 +76,7 @@ final class MeilisearchCreateCommand extends IndexCommand
         foreach ($entitiesToIndex as $index) {
             $entityClassName = $index['class'];
 
-            if (!$this->searchService->isSearchable($entityClassName)) {
+            if (!$this->searchManager->isSearchable($entityClassName)) {
                 continue;
             }
 

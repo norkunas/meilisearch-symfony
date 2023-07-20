@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Meilisearch\Bundle\DependencyInjection;
 
-use Meilisearch\Bundle\Searchable;
+use Meilisearch\Bundle\SearchableObject;
 use Symfony\Component\Config\Definition\Builder\TreeBuilder;
 use Symfony\Component\Config\Definition\ConfigurationInterface;
 
@@ -49,13 +49,18 @@ final class Configuration implements ConfigurationInterface
                                 ->isRequired()
                                 ->cannotBeEmpty()
                             ->end()
+                            ->enumNode('type')
+                                ->defaultValue('orm')
+                                ->values(['orm', 'orm_aggregator', 'custom'])
+                            ->end()
+                            ->scalarNode('data_provider')->defaultNull()->end()
                             ->booleanNode('enable_serializer_groups')
-                                ->info('When set to true, it will call normalize method with an extra groups parameter "groups" => [Searchable::NORMALIZATION_GROUP]')
+                                ->info('When set to true, it will call normalize method with an extra groups parameter "groups" => [SearchableObject::NORMALIZATION_GROUP]')
                                 ->defaultFalse()
                             ->end()
                             ->arrayNode('serializer_groups')
-                                ->info('When setting a different value, normalization will be called with it instead of "Searchable::NORMALIZATION_GROUP".')
-                                ->defaultValue([Searchable::NORMALIZATION_GROUP])
+                                ->info('When setting a different value, normalization will be called with it instead of "SearchableObject::NORMALIZATION_GROUP".')
+                                ->defaultValue([SearchableObject::NORMALIZATION_GROUP])
                                 ->scalarPrototype()->end()
                             ->end()
                             ->scalarNode('index_if')
