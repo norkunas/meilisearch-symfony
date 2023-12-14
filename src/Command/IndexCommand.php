@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Meilisearch\Bundle\Command;
 
 use Meilisearch\Bundle\Collection;
+use Meilisearch\Bundle\DependencyInjection\Configuration;
 use Meilisearch\Bundle\SearchService;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
@@ -12,38 +13,29 @@ use Symfony\Component\Console\Output\OutputInterface;
 
 abstract class IndexCommand extends Command
 {
-    private string $prefix;
+    protected Collection $configuration;
     protected SearchService $searchService;
 
-    public function __construct(SearchService $searchService)
+    public function __construct(Collection $configuration, SearchService $searchService)
     {
+        $this->configuration = $configuration;
         $this->searchService = $searchService;
-        $this->prefix = $this->searchService->getConfiguration()->get('prefix');
 
         parent::__construct();
     }
 
-    protected function getIndices(): Collection
-    {
-        return (new Collection($this->searchService->getConfiguration()->get('indices')))
-            ->transform(function (array $item) {
-                $item['name'] = $this->prefix.$item['name'];
-
-                return $item;
-            });
-    }
-
     protected function getEntitiesFromArgs(InputInterface $input, OutputInterface $output): Collection
     {
-        $indices = $this->getIndices();
+        $indices = new Collection($this->configuration->get('indices'));
         $indexNames = new Collection();
 
         if ($indexList = $input->getOption('indices')) {
+            $prefix = $this->configuration->get('prefix');
             $list = \explode(',', $indexList);
-            $indexNames = (new Collection($list))->transform(function (string $item): string {
+            $indexNames = (new Collection($list))->transform(function (string $item) use ($prefix): string {
                 // Check if the given index name already contains the prefix
-                if (!str_contains($item, $this->prefix)) {
-                    return $this->prefix.$item;
+                if (!str_starts_with($item, $prefix)) {
+                    return $prefix.$item;
                 }
 
                 return $item;

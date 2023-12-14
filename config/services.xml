@@ -44,14 +44,46 @@
         </service>
         <service id="Meilisearch\Bundle\SearchService" alias="meilisearch.service" />
 
+        <service id="meilisearch.index_creator" class="Meilisearch\Bundle\Services\MeilisearchIndexCreator">
+            <argument type="service" id="meilisearch.client" />
+            <argument type="service" id="event_dispatcher" />
+            <argument type="service" id="meilisearch.configuration" />
+        </service>
+        <service id="Meilisearch\Bundle\Services\MeilisearchIndexCreator" alias="meilisearch.index_creator" />
+
+        <service id="meilisearch.importer" class="Meilisearch\Bundle\Services\MeilisearchImporter">
+            <argument type="service" id="meilisearch.configuration" />
+            <argument type="service" id="meilisearch.service" />
+            <argument type="service" id="meilisearch.client" />
+            <argument type="service" id="doctrine" />
+            <argument type="service" id="meilisearch.setting_updater" />
+            <argument type="service" id="event_dispatcher" />
+        </service>
+        <service id="Meilisearch\Bundle\Services\MeilisearchImporter" alias="meilisearch.importer" />
+
+        <service id="meilisearch.setting_updater" class="Meilisearch\Bundle\Services\MeilisearchSettingUpdater">
+            <argument type="service" id="meilisearch.service" />
+            <argument type="service" id="meilisearch.client" />
+            <argument type="service" id="event_dispatcher" />
+        </service>
+        <service id="Meilisearch\Bundle\Services\MeilisearchSettingUpdater" alias="meilisearch.setting_updater" />
+
+        <service id="meilisearch.configuration" class="Meilisearch\Bundle\Collection">
+            <argument /><!-- defined in Meilisearch\Bundle\DependencyInjection\MeilisearchExtension.php -->
+        </service>
+
         <service id="Meilisearch\Bundle\Command\MeilisearchClearCommand">
             <argument type="service" id="meilisearch.service" />
             <tag name="console.command" />
         </service>
 
         <service id="Meilisearch\Bundle\Command\MeilisearchCreateCommand">
+            <argument type="service" id="meilisearch.configuration" />
             <argument type="service" id="meilisearch.service" />
             <argument type="service" id="meilisearch.client" />
+            <argument type="service" id="meilisearch.index_creator" />
+            <argument type="service" id="meilisearch.setting_updater" />
+            <argument type="service" id="event_dispatcher" />
             <tag name="console.command" />
         </service>
 
@@ -61,9 +93,10 @@
         </service>
 
         <service id="Meilisearch\Bundle\Command\MeilisearchImportCommand">
+            <argument type="service" id="meilisearch.configuration" />
             <argument type="service" id="meilisearch.service" />
-            <argument type="service" id="doctrine" />
-            <argument type="service" id="meilisearch.client" />
+            <argument type="service" id="meilisearch.importer" />
+            <argument type="service" id="event_dispatcher" />
             <tag name="console.command" />
         </service>
     </services>

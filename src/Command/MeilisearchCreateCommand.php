@@ -5,25 +5,39 @@ declare(strict_types=1);
 namespace Meilisearch\Bundle\Command;
 
 use Meilisearch\Bundle\Collection;
-use Meilisearch\Bundle\Exception\InvalidSettingName;
-use Meilisearch\Bundle\Exception\TaskException;
+use Meilisearch\Bundle\EventListener\ConsoleOutputSubscriber;
 use Meilisearch\Bundle\Model\Aggregator;
 use Meilisearch\Bundle\SearchService;
-use Meilisearch\Bundle\SettingsProvider;
+use Meilisearch\Bundle\Services\MeilisearchIndexCreator;
+use Meilisearch\Bundle\Services\MeilisearchSettingUpdater;
 use Meilisearch\Client;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
+use Symfony\Component\Console\Style\SymfonyStyle;
+use Symfony\Component\EventDispatcher\EventDispatcherInterface;
 
 final class MeilisearchCreateCommand extends IndexCommand
 {
     private Client $searchClient;
+    private MeilisearchIndexCreator $indexCreator;
+    private MeilisearchSettingUpdater $settingUpdater;
+    private EventDispatcherInterface $eventDispatcher;
 
-    public function __construct(SearchService $searchService, Client $searchClient)
-    {
-        parent::__construct($searchService);
+    public function __construct(
+        Collection $configuration,
+        SearchService $searchService,
+        Client $searchClient,
+        MeilisearchIndexCreator $indexCreator,
+        MeilisearchSettingUpdater $settingUpdater,
+        EventDispatcherInterface $eventDispatcher
+    ) {
+        parent::__construct($configuration, $searchService);
 
         $this->searchClient = $searchClient;
+        $this->indexCreator = $indexCreator;
+        $this->settingUpdater = $settingUpdater;
+        $this->eventDispatcher = $eventDispatcher;
     }
 
     public static function getDefaultName(): string
@@ -40,20 +54,54 @@ final class MeilisearchCreateCommand extends IndexCommand
     {
         $this
             ->setDescription(self::getDefaultDescription())
-            ->addOption('indices', 'i', InputOption::VALUE_OPTIONAL, 'Comma-separated list of index names');
+            ->addOption('indices', 'i', InputOption::VALUE_OPTIONAL, 'Comma-separated list of index names')
+            ->addOption(
+                'update-settings',
+                null,
+                InputOption::VALUE_NEGATABLE,
+                'Update settings related to indices to the search engine',
+                true
+            );
+    }
+
+    protected function execute(InputInterface $input, OutputInterface $output): int
+    {
+        $this->eventDispatcher->addSubscriber(new ConsoleOutputSubscriber(new SymfonyStyle($input, $output)));
+
+        $indexes = $this->getEntitiesFromArgs($input, $output);
+        $entitiesToIndex = $this->entitiesToIndex($indexes);
+        $updateSettings = $input->getOption('update-settings');
+
+        foreach ($entitiesToIndex as $index) {
+            $this->indexCreator->create($index['name']);
+
+            $task = $this->searchClient->createIndex($index['prefixed_name']);
+            $this->searchClient->waitForTask($task['taskUid']);
+
+            if ($updateSettings) {
+                $this->settingUpdater->update($index['name']);
+            }
+        }
+
+        $output->writeln('<info>Done!</info>');
+
+        return 0;
     }
 
     private function entitiesToIndex($indexes): array
     {
+        $prefix = $this->configuration->get('prefix');
+
         foreach ($indexes as $key => $index) {
             $entityClassName = $index['class'];
+
             if (is_subclass_of($entityClassName, Aggregator::class)) {
                 $indexes->forget($key);
 
                 $indexes = new Collection(array_merge(
                     $indexes->all(),
                     array_map(
-                        static fn ($entity) => ['name' => $index['name'], 'class' => $entity],
+                        static fn ($entity) => ['name' => $index['name'], 'prefixed_name' => $prefix.$index['name'], 'class' => $entity],
                         $entityClassName::getEntities()
                     )
                 ));
@@ -61,59 +109,5 @@ final class MeilisearchCreateCommand extends IndexCommand
         }
 
         return array_unique($indexes->all(), SORT_REGULAR);
-    }
-
-    protected function execute(InputInterface $input, OutputInterface $output): int
-    {
-        $indexes = $this->getEntitiesFromArgs($input, $output);
-        $entitiesToIndex = $this->entitiesToIndex($indexes);
-
-        /** @var array $index */
-        foreach ($entitiesToIndex as $index) {
-            $entityClassName = $index['class'];
-
-            if (!$this->searchService->isSearchable($entityClassName)) {
-                continue;
-            }
-
-            $output->writeln('<info>Creating index '.$index['name'].' for '.$entityClassName.'</info>');
-
-            $task = $this->searchClient->createIndex($index['name']);
-            $this->searchClient->waitForTask($task['taskUid']);
-            $indexInstance = $this->searchClient->index($index['name']);
-
-            if (isset($index['settings']) && is_array($index['settings'])) {
-                foreach ($index['settings'] as $variable => $value) {
-                    $method = sprintf('update%s', ucfirst($variable));
-
-                    if (!method_exists($indexInstance, $method)) {
-                        throw new InvalidSettingName(sprintf('Invalid setting name: "%s"', $variable));
-                    }
-
-                    if (isset($value['_service']) && $value['_service'] instanceof SettingsProvider) {
-                        $value = $value['_service']();
-                    } elseif ('distinctAttribute' === $variable && is_array($value)) {
-                        $value = $value[0] ?? null;
-                    }
-
-                    // Update
-                    $task = $indexInstance->{$method}($value);
-
-                    // Get task information using uid
-                    $indexInstance->waitForTask($task['taskUid']);
-                    $task = $indexInstance->getTask($task['taskUid']);
-
-                    if ('failed' === $task['status']) {
-                        throw new TaskException($task['error']);
-                    }
-
-                    $output->writeln('<info>Settings updated of "'.$index['name'].'".</info>');
-                }
-            }
-        }
-
-        $output->writeln('<info>Done!</info>');
-
-        return 0;
     }
 }

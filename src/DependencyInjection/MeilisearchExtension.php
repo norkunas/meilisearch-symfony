@@ -26,8 +26,12 @@ final class MeilisearchExtension extends Extension
         }
 
         foreach ($config['indices'] as $index => $indice) {
+            $config['indices'][$index]['prefixed_name'] = $config['prefix'].$indice['name'];
             $config['indices'][$index]['settings'] = $this->findReferences($config['indices'][$index]['settings']);
         }
+
+        $configService = $container->findDefinition('meilisearch.configuration');
+        $configService->replaceArgument(0, $config);
 
         $container->setParameter('meili_url', $config['url'] ?? null);
         $container->setParameter('meili_api_key', $config['api_key'] ?? null);
