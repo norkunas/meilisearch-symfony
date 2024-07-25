@@ -8,17 +8,40 @@ use Doctrine\Persistence\ObjectManager;
 use Meilisearch\Bundle\Collection;
 use Meilisearch\Bundle\SearchService;
 use Symfony\Component\Stopwatch\Stopwatch;
+use Symfony\Contracts\Service\ResetInterface;
 
 /**
+ * @phpstan-type TracedFunction array{
+ *     _params: array<mixed>,
+ *     _results: array<mixed>,
+ *     _duration: int|float,
+ *     _memory: int
+ * }
+ * @phpstan-type MeilisearchDebugData array{
+ *     index: TracedFunction,
+ *     remove: TracedFunction,
+ *     clear: TracedFunction,
+ *     deleteByIndexName: TracedFunction,
+ *     delete: TracedFunction,
+ *     search: TracedFunction,
+ *     rawSearch: TracedFunction,
+ *     count: TracedFunction
+ * }
+ *
  * @author Antoine Makdessi <amakdessi@me.com>
  */
-final class TraceableMeilisearchService implements SearchService
+final class TraceableMeilisearchService implements SearchService, ResetInterface
 {
     private SearchService $searchService;
-    private Stopwatch $stopwatch;
+
+    private ?Stopwatch $stopwatch;
+
+    /**
+     * @var MeilisearchDebugData
+     */
     private array $data = [];
 
-    public function __construct(SearchService $searchService, Stopwatch $stopwatch)
+    public function __construct(SearchService $searchService, ?Stopwatch $stopwatch = null)
     {
         $this->searchService = $searchService;
         $this->stopwatch = $stopwatch;
@@ -84,26 +107,50 @@ final class TraceableMeilisearchService implements SearchService
         return $this->searchService->searchableAs($className);
     }
 
-    /** @internal used in the DataCollector class */
+    /**
+     * @internal used in the DataCollector class
+     *
+     * @return MeilisearchDebugData
+     */
     public function getData(): array
     {
         return $this->data;
     }
 
-    private function innerSearchService(string $function, array $args): mixed
+    public function reset(): void
     {
-        $this->stopwatch->start($function);
+        $this->data = [];
+    }
+
+    /**
+     * @param array<mixed> $args
+     *
+     * @return mixed
+     */
+    private function innerSearchService(string $function, array $args)
+    {
+        if ($this->stopwatch !== null) {
+            $this->stopwatch->start($function);
+        }
 
         $result = $this->searchService->{$function}(...$args);
 
-        $event = $this->stopwatch->stop($function);
+        $event = null;
+        if ($this->stopwatch !== null) {
+            $event = $this->stopwatch->stop($function);
+        }
 
         $this->data[$function] = [
             '_params' => $args,
             '_results' => $result,
-            '_duration' => $event->getDuration(),
-            '_memory' => $event->getMemory(),
+//            '_duration' => $event->getDuration(),
+//            '_memory' => $event->getMemory(),
         ];
+        if ($event !== null) {
+            $this->data[$function] = array_merge($this->data[$function], [
+
+            ]);
+        }
 
         return $result;
     }

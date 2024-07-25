@@ -1,0 +1,20 @@
+<?xml version="1.0" ?>
+<container xmlns="http://symfony.com/schema/dic/services"
+           xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+           xsi:schemaLocation="http://symfony.com/schema/dic/services https://symfony.com/schema/dic/services/services-1.0.xsd"
+>
+    <services>
+        <service id="debug.meilisearch.service" class="Meilisearch\Bundle\Debug\TraceableMeilisearchService" decorates="meilisearch.service">
+            <argument type="service" id="debug.meilisearch.service.inner" />
+            <argument type="service" id="debug.stopwatch" />
+        </service>
+
+        <service id="data_collector.meilisearch" class="Meilisearch\Bundle\DataCollector\MeilisearchDataCollector">
+            <argument type="service" id="debug.meilisearch.service" />
+            <tag name="data_collector">
+                <attribute name="template">@Meilisearch/DataCollector/meilisearch.html.twig</attribute>
+                <attribute name="id">meilisearch</attribute>
+            </tag>
+        </service>
+    </services>
+</container>

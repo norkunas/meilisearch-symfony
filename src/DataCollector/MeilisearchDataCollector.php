@@ -20,6 +20,7 @@ final class MeilisearchDataCollector extends AbstractDataCollector
     {
         $this->meilisearchService = $meilisearchService;
     }
+
     public function collect(Request $request, Response $response, \Throwable $exception = null): void
     {
         $data = $this->meilisearchService->getData();
@@ -32,8 +33,10 @@ final class MeilisearchDataCollector extends AbstractDataCollector
         return 'meilisearch';
     }
 
-    /** @internal used in the DataCollector view template */
-    public function getMeilisearch(): mixed
+    /**
+     * @internal used in the DataCollector view template
+     */
+    public function getMeilisearch(): ?array
     {
         return $this->data[$this->getName()] ?? null;
     }

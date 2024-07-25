@@ -6,7 +6,6 @@ namespace Meilisearch\Bundle\DependencyInjection;
 
 use Meilisearch\Bundle\DataCollector\MeilisearchDataCollector;
 use Meilisearch\Bundle\Debug\TraceableMeilisearchService;
-use Meilisearch\Bundle\Engine;
 use Meilisearch\Bundle\MeilisearchBundle;
 use Meilisearch\Bundle\SearchService;
 use Meilisearch\Bundle\Services\UnixTimestampNormalizer;
@@ -23,6 +22,10 @@ final class MeilisearchExtension extends Extension
     {
         $loader = new Loader\XmlFileLoader($container, new FileLocator(__DIR__.'/../../config'));
         $loader->load('services.xml');
+
+        if ($container->getParameter('kernel.debug') && $container->has('debug.stopwatch')) {
+            $loader->load('debug.xml');
+        }
 
         $configuration = new Configuration();
         $config = $this->processConfiguration($configuration, $configs);
@@ -62,22 +65,6 @@ final class MeilisearchExtension extends Extension
 
         if (Kernel::VERSION_ID >= 70100) {
             $container->removeDefinition(UnixTimestampNormalizer::class);
-        }
-        $container->setDefinition('meilisearch.service', $searchDefinition->setPublic(true));
-        $container->setAlias('search.service', 'meilisearch.service')->setPublic(true);
-
-        if ($container->getParameter('kernel.debug')) {
-            $container->register('debug.meilisearch.service', TraceableMeilisearchService::class)
-                ->setDecoratedService(SearchService::class)
-                ->addArgument(new Reference('debug.meilisearch.service.inner'))
-                ->addArgument(new Reference('debug.stopwatch'))
-            ;
-            $container->register('data_collector.meilisearch', MeilisearchDataCollector::class)
-                ->addArgument(new Reference('debug.meilisearch.service'))
-                ->addTag('data_collector', [
-                    'id' => 'meilisearch',
-                    'template' => '@Meilisearch/DataCollector/meilisearch.html.twig',
-                ]);
         }
     }
 
