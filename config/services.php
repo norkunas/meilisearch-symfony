@@ -6,6 +6,7 @@ use Meilisearch\Bundle\Command\MeilisearchClearCommand;
 use Meilisearch\Bundle\Command\MeilisearchCreateCommand;
 use Meilisearch\Bundle\Command\MeilisearchDeleteCommand;
 use Meilisearch\Bundle\Command\MeilisearchImportCommand;
+use Meilisearch\Bundle\Command\MeilisearchStatsCommand;
 use Meilisearch\Bundle\Command\MeilisearchUpdateSettingsCommand;
 use Meilisearch\Bundle\DataProvider\DataProviderRegistry;
 use Meilisearch\Bundle\DataProvider\DataProviderRegistryInterface;
@@ -119,6 +120,12 @@ return static function (ContainerConfigurator $container) {
             service('event_dispatcher'),
         ])
         ->tag('console.command', ['command' => 'meilisearch:update-settings', 'description' => 'Push settings to meilisearch']);
+
+    $services->set(MeilisearchStatsCommand::class)
+        ->args([
+            service('meilisearch.client'),
+        ])
+        ->tag('console.command', ['command' => 'meilisearch:stats', 'description' => 'Outputs meilisearch stats']);
 
     $services->set(UnixTimestampNormalizer::class)
         ->tag('serializer.normalizer');
